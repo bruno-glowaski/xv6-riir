@@ -12,7 +12,7 @@ _entry:
   mul a0, a0, a1
 
   # Call main function
-  call main
+  call start
 
 .section .data
 
