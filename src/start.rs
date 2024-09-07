@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use riscv::register::{medeleg, mepc, mhartid, mideleg, mstatus, pmpaddr0, pmpcfg0, satp};
+use riscv::register::{mepc, mhartid, mstatus, pmpaddr0, pmpcfg0, satp};
 
 use crate::{clint, main};
 
