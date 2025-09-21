@@ -13,7 +13,7 @@ I like operating systems and low-level system development. I felt like rewriting
 - [ ] Console I/O;
 
 - Prototype 1:
-    - [ ] Serial IO through UART;
+    - [x] Serial IO through UART;
     - [ ] Interrupts;
     - [ ] Threads;
     - [ ] Timer;
