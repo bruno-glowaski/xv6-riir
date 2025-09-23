@@ -6,7 +6,7 @@ mod io;
 mod setup;
 mod timer;
 
-use core::{arch::naked_asm, fmt::Write, panic::PanicInfo};
+use core::{arch::naked_asm, panic::PanicInfo};
 
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
@@ -23,15 +23,7 @@ pub unsafe extern "C" fn _trapvec() -> ! {
 
 #[panic_handler]
 pub fn panic_handler(info: &PanicInfo) -> ! {
-    let mut uart = io::uart::Uart;
-    let location = info.location().unwrap();
-    _ = uart.write_fmt(format_args!(
-        "kernel panic @{}:{}:{}: {}",
-        location.file(),
-        location.line(),
-        location.column(),
-        info.message().as_str().unwrap(),
-    ));
+    println!("{}", info);
     loop {}
 }
 
