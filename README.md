@@ -14,9 +14,9 @@ I like operating systems and low-level system development. I felt like rewriting
 
 - Prototype 1:
     - [x] Serial IO through UART;
-    - [ ] Interrupts;
+    - [x] Interrupts;
     - [ ] Threads;
-    - [ ] Timer;
+    - [x] Timer;
 - Prototype 2:
     - [ ] Multitasking;
     - [ ] Memory allocator;
