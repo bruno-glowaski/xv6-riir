@@ -3,10 +3,13 @@
 #![feature(int_format_into)]
 
 mod io;
+mod proc;
 mod setup;
 mod timer;
 
-use core::{arch::naked_asm, panic::PanicInfo};
+use core::{arch::naked_asm, panic::PanicInfo, ptr::addr_of_mut};
+
+use crate::proc::{Context, switch};
 
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
@@ -29,11 +32,31 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
 
 const TIMER_INTERVAL: u64 = 10_000_000;
 
+static mut THREAD_1_STACK: [u8; 8 * 1024] = [0; 8 * 1024];
+
+static mut START_CONTEXT: Context = unsafe { Context::zeroed() };
+static mut THREAD_1_CONTEXT: Context = unsafe { Context::zeroed() };
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start() -> ! {
-    setup::int();
-    timer::schedule(TIMER_INTERVAL);
+    println!("rxv6 start");
+    println!("finished setup");
+    println!("switching");
+    unsafe {
+        THREAD_1_CONTEXT = Context::new(addr_of_mut!(THREAD_1_STACK[8 * 1024 - 1]), process1);
+    }
+    unsafe {
+        switch(&raw mut START_CONTEXT, &raw mut THREAD_1_CONTEXT);
+    }
+    println!("I'm start!");
     loop {}
+}
+
+pub fn process1() {
+    println!("I'm process 1!");
+    unsafe {
+        switch(&raw mut THREAD_1_CONTEXT, &raw mut START_CONTEXT);
+    }
 }
 
 #[unsafe(no_mangle)]
