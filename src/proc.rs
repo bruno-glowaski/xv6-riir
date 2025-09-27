@@ -1,5 +1,7 @@
 use core::{arch::naked_asm, mem::MaybeUninit};
 
+use crate::utils::{cells::Idc, collections::ArrayVec};
+
 #[repr(C)]
 #[derive(Default)]
 pub struct Context {
@@ -11,6 +13,7 @@ pub struct Context {
     s: [u64; 12],
     a: [u64; 8],
 }
+
 impl Context {
     pub unsafe fn new(stack_end: *mut u8, entry: fn()) -> Self {
         Self {
@@ -29,12 +32,8 @@ impl Context {
     }
 }
 
-pub unsafe fn switch(from: *mut Context, to: *const Context) {
-    unsafe { _switch(from, to) }
-}
-
 #[unsafe(naked)]
-unsafe extern "C" fn _switch(from: *mut Context, to: *const Context) {
+unsafe extern "C" fn switch(from: *mut Context, to: *const Context) {
     naked_asm!(
         // Save callee-saved registers to current
         "sd ra, 0(a0)",
@@ -104,7 +103,62 @@ unsafe extern "C" fn _switch(from: *mut Context, to: *const Context) {
     );
 }
 
-#[unsafe(naked)]
-unsafe extern "C" fn thread_entry() {
-    naked_asm!("jalr ra, a0, 0", "1: j 1b")
+// #[unsafe(naked)]
+// unsafe extern "C" fn thread_entry() {
+//     naked_asm!("jalr ra, a0, 0", "1: j 1b")
+// }
+
+pub type PID = u64;
+
+pub enum ProcessState {
+    Idle,
+    Running,
+}
+
+pub struct Process {
+    state: ProcessState,
+    context: Context,
+}
+
+const MAX_PROCESSES: usize = 2;
+const PROCESS_STACK_SIZE: usize = 8 * 1024;
+
+static mut STACKS: [[u8; PROCESS_STACK_SIZE]; MAX_PROCESSES] =
+    [[0; PROCESS_STACK_SIZE]; MAX_PROCESSES];
+static PROCESSES: Idc<ArrayVec<Process, MAX_PROCESSES>> = Idc::new(ArrayVec::new());
+static mut CURRENT_PID: PID = 0;
+
+pub fn create_process(entry: fn()) -> PID {
+    let pid = PROCESSES.get().len();
+    let stack = unsafe { &raw mut STACKS[pid] as *mut u8 };
+    let sp = stack.wrapping_offset((PROCESS_STACK_SIZE - 1) as isize);
+    PROCESSES.get().push(Process {
+        state: ProcessState::Idle,
+        context: unsafe { Context::new(sp, entry) },
+    });
+    pid as u64
+}
+
+static SCHEDULER_CONTEXT: Idc<MaybeUninit<Context>> = Idc::new(MaybeUninit::uninit());
+
+pub fn run_scheduler() -> ! {
+    loop {
+        unsafe {
+            let pid = CURRENT_PID as usize;
+            let process = &mut PROCESSES.get()[pid];
+            if let ProcessState::Idle = process.state {
+                process.state = ProcessState::Running;
+                switch(SCHEDULER_CONTEXT.get().as_mut_ptr(), &process.context);
+            }
+            process.state = ProcessState::Idle;
+            CURRENT_PID = ((pid + 1) % PROCESSES.get().len()) as u64;
+        }
+    }
+}
+
+pub fn yield_self() {
+    unsafe {
+        let process = &mut PROCESSES.get()[CURRENT_PID as usize];
+        switch(&raw mut process.context, SCHEDULER_CONTEXT.get().as_ptr());
+    }
 }

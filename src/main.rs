@@ -3,13 +3,19 @@
 #![feature(int_format_into)]
 
 mod io;
+mod irq;
 mod proc;
 mod setup;
 mod timer;
+mod utils;
 
-use core::{arch::naked_asm, panic::PanicInfo, ptr::addr_of_mut};
+use core::{arch::naked_asm, panic::PanicInfo};
 
-use crate::proc::{Context, switch};
+unsafe extern "C" {
+    static mut __stack_size: u8;
+    static mut __stack_start: u8;
+    static mut __stack_end: u8;
+}
 
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
@@ -32,30 +38,41 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
 
 const TIMER_INTERVAL: u64 = 10_000_000;
 
-static mut THREAD_1_STACK: [u8; 8 * 1024] = [0; 8 * 1024];
-
-static mut START_CONTEXT: Context = unsafe { Context::zeroed() };
-static mut THREAD_1_CONTEXT: Context = unsafe { Context::zeroed() };
+#[cfg(miri)]
+#[unsafe(no_mangle)]
+fn miri_start(argc: isize, argv: *const *const u8) -> isize {
+    unsafe {
+        start();
+    }
+    return 0;
+}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start() -> ! {
     println!("rxv6 start");
-    println!("finished setup");
-    println!("switching");
-    unsafe {
-        THREAD_1_CONTEXT = Context::new(addr_of_mut!(THREAD_1_STACK[8 * 1024 - 1]), process1);
-    }
-    unsafe {
-        switch(&raw mut START_CONTEXT, &raw mut THREAD_1_CONTEXT);
-    }
-    println!("I'm start!");
-    loop {}
+    println!(
+        "stack: [{:?}-{:?}]({})",
+        &raw const __stack_start, &raw const __stack_end, &raw const __stack_size as usize
+    );
+    println!("Creating process 1...");
+    proc::create_process(process1);
+    println!("Creating process 2...");
+    proc::create_process(process2);
+    println!("Starting scheduler...");
+    proc::run_scheduler();
 }
 
 pub fn process1() {
-    println!("I'm process 1!");
-    unsafe {
-        switch(&raw mut THREAD_1_CONTEXT, &raw mut START_CONTEXT);
+    loop {
+        println!("I'm process 1!");
+        proc::yield_self();
+    }
+}
+
+pub fn process2() {
+    loop {
+        println!("I'm process 2!");
+        proc::yield_self();
     }
 }
 
