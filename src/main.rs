@@ -138,7 +138,7 @@ pub fn process1() {
 pub fn process2() {
     loop {
         println!("I'm process 2!");
-        proc::wait_irq();
+        proc::sleep(CPU_FREQ_HZ * 3);
     }
 }
 

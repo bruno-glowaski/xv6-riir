@@ -4,7 +4,8 @@ use core::{
 };
 
 use crate::{
-    irq, println, timer,
+    irq, println,
+    timer::{self, current_time},
     utils::{cells::Idc, collections::ArrayVec},
 };
 
@@ -115,12 +116,29 @@ pub type PID = u64;
 pub enum ProcessState {
     Idle,
     Running,
+    Sleeping { start: u64, duration: u64 },
+}
+
+impl ProcessState {
+    pub fn can_run(&self) -> bool {
+        match self {
+            ProcessState::Idle => true,
+            ProcessState::Running => false,
+            ProcessState::Sleeping { start, duration } => current_time() > start + duration,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Process {
     state: ProcessState,
     context: Context,
+}
+
+impl Process {
+    pub fn can_run(&self) -> bool {
+        self.state.can_run()
+    }
 }
 
 const MAX_PROCESSES: usize = 2;
@@ -149,8 +167,9 @@ pub fn run_scheduler(quanta: u64) -> ! {
         let pid = current_pid() as usize;
         let process = &mut PROCESSES.get()[pid];
         println!("PROC TEST PID {}({:?})", pid, process.state);
-        if let ProcessState::Idle = process.state {
+        if process.can_run() {
             process.state = ProcessState::Running;
+            println!("PROC START PID {}", pid);
             timer::schedule(quanta);
             irq::enable();
             unsafe {
@@ -161,6 +180,8 @@ pub fn run_scheduler(quanta: u64) -> ! {
             if let ProcessState::Running = process.state {
                 process.state = ProcessState::Idle;
             }
+        } else {
+            println!("PROC SKIP PID {}", pid);
         }
         let process_count = PROCESSES.get().len();
         unsafe {
@@ -171,6 +192,14 @@ pub fn run_scheduler(quanta: u64) -> ! {
 
 pub fn current_pid() -> u64 {
     unsafe { CURRENT_PID }
+}
+
+pub fn sleep(duration: u64) {
+    PROCESSES.get()[current_pid() as usize].state = ProcessState::Sleeping {
+        start: timer::current_time(),
+        duration,
+    };
+    yield_self();
 }
 
 pub fn yield_self() {
