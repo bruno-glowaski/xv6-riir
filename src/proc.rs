@@ -1,9 +1,15 @@
-use core::{arch::naked_asm, mem::MaybeUninit};
+use core::{
+    arch::{asm, naked_asm},
+    mem::MaybeUninit,
+};
 
-use crate::utils::{cells::Idc, collections::ArrayVec};
+use crate::{
+    irq, println, timer,
+    utils::{cells::Idc, collections::ArrayVec},
+};
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Context {
     ra: u64,
     sp: u64,
@@ -15,7 +21,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub unsafe fn new(stack_end: *mut u8, entry: fn()) -> Self {
+    pub fn new(stack_end: *mut u8, entry: fn()) -> Self {
         Self {
             ra: entry as u64,
             sp: stack_end as u64,
@@ -27,7 +33,7 @@ impl Context {
         }
     }
 
-    pub const unsafe fn zeroed() -> Context {
+    pub const fn zeroed() -> Context {
         unsafe { MaybeUninit::zeroed().assume_init() }
     }
 }
@@ -103,18 +109,15 @@ unsafe extern "C" fn switch(from: *mut Context, to: *const Context) {
     );
 }
 
-// #[unsafe(naked)]
-// unsafe extern "C" fn thread_entry() {
-//     naked_asm!("jalr ra, a0, 0", "1: j 1b")
-// }
-
 pub type PID = u64;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProcessState {
     Idle,
     Running,
 }
 
+#[derive(Debug)]
 pub struct Process {
     state: ProcessState,
     context: Context,
@@ -134,31 +137,49 @@ pub fn create_process(entry: fn()) -> PID {
     let sp = stack.wrapping_offset((PROCESS_STACK_SIZE - 1) as isize);
     PROCESSES.get().push(Process {
         state: ProcessState::Idle,
-        context: unsafe { Context::new(sp, entry) },
+        context: Context::new(sp, entry),
     });
     pid as u64
 }
 
-static SCHEDULER_CONTEXT: Idc<MaybeUninit<Context>> = Idc::new(MaybeUninit::uninit());
+static SCHEDULER_CONTEXT: Idc<Context> = Idc::new(Context::zeroed());
 
-pub fn run_scheduler() -> ! {
+pub fn run_scheduler(quanta: u64) -> ! {
     loop {
-        unsafe {
-            let pid = CURRENT_PID as usize;
-            let process = &mut PROCESSES.get()[pid];
-            if let ProcessState::Idle = process.state {
-                process.state = ProcessState::Running;
-                switch(SCHEDULER_CONTEXT.get().as_mut_ptr(), &process.context);
+        let pid = current_pid() as usize;
+        let process = &mut PROCESSES.get()[pid];
+        println!("PROC TEST PID {}({:?})", pid, process.state);
+        if let ProcessState::Idle = process.state {
+            process.state = ProcessState::Running;
+            timer::schedule(quanta);
+            irq::enable();
+            unsafe {
+                switch(SCHEDULER_CONTEXT.get(), &process.context);
             }
-            process.state = ProcessState::Idle;
-            CURRENT_PID = ((pid + 1) % PROCESSES.get().len()) as u64;
+            irq::disable();
+            println!("PROC END PID {}({:?})", pid, process.state);
+            if let ProcessState::Running = process.state {
+                process.state = ProcessState::Idle;
+            }
+        }
+        let process_count = PROCESSES.get().len();
+        unsafe {
+            CURRENT_PID = ((pid + 1) % process_count) as u64;
         }
     }
+}
+
+pub fn current_pid() -> u64 {
+    unsafe { CURRENT_PID }
 }
 
 pub fn yield_self() {
     unsafe {
         let process = &mut PROCESSES.get()[CURRENT_PID as usize];
-        switch(&raw mut process.context, SCHEDULER_CONTEXT.get().as_ptr());
+        switch(&raw mut process.context, SCHEDULER_CONTEXT.get());
     }
+}
+
+pub fn wait_irq() {
+    unsafe { asm!("wfi") }
 }

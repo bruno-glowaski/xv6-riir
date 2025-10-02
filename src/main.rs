@@ -1,11 +1,9 @@
 #![no_std]
 #![no_main]
-#![feature(int_format_into)]
 
 mod io;
 mod irq;
 mod proc;
-mod setup;
 mod timer;
 mod utils;
 
@@ -26,8 +24,81 @@ pub unsafe extern "C" fn _entry() -> ! {
 
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-pub unsafe extern "C" fn _trapvec() -> ! {
-    naked_asm!("call on_timer_int", "mret")
+pub unsafe extern "C" fn _trapvec() {
+    naked_asm!(
+        // Save user registers on current stack, except sp & tp (which is hart-local)
+        "addi sp, sp, -30*8",
+        "sd  ra,  0*8(sp)",
+        "sd  gp,  1*8(sp)",
+        "sd  t0,  2*8(sp)",
+        "sd  t1,  3*8(sp)",
+        "sd  t2,  4*8(sp)",
+        "sd  t3,  5*8(sp)",
+        "sd  t4,  6*8(sp)",
+        "sd  t5,  7*8(sp)",
+        "sd  t6,  8*8(sp)",
+        "sd  a0,  9*8(sp)",
+        "sd  a1, 10*8(sp)",
+        "sd  a2, 11*8(sp)",
+        "sd  a3, 12*8(sp)",
+        "sd  a4, 13*8(sp)",
+        "sd  a5, 14*8(sp)",
+        "sd  a6, 15*8(sp)",
+        "sd  a7, 16*8(sp)",
+        "sd  s0, 17*8(sp)",
+        "sd  s1, 18*8(sp)",
+        "sd  s2, 19*8(sp)",
+        "sd  s3, 20*8(sp)",
+        "sd  s4, 21*8(sp)",
+        "sd  s5, 22*8(sp)",
+        "sd  s6, 23*8(sp)",
+        "sd  s7, 24*8(sp)",
+        "sd  s8, 25*8(sp)",
+        "sd  s9, 26*8(sp)",
+        "sd s10, 27*8(sp)",
+        "sd s11, 28*8(sp)",
+        // Save mepc
+        "csrr t0, mepc",
+        "sd t0, 29*8(sp)",
+        // Call traphandler
+        "call on_timer_irq",
+        // Restore mepc
+        "ld t0, 29*8(sp)",
+        "csrw mepc, t0",
+        // Restore registers from current stack, except sp & tp
+        "ld  ra,  0*8(sp)",
+        "ld  gp,  1*8(sp)",
+        "ld  t0,  2*8(sp)",
+        "ld  t1,  3*8(sp)",
+        "ld  t2,  4*8(sp)",
+        "ld  t3,  5*8(sp)",
+        "ld  t4,  6*8(sp)",
+        "ld  t5,  7*8(sp)",
+        "ld  t6,  8*8(sp)",
+        "ld  a0,  9*8(sp)",
+        "ld  a1, 10*8(sp)",
+        "ld  a2, 11*8(sp)",
+        "ld  a3, 12*8(sp)",
+        "ld  a4, 13*8(sp)",
+        "ld  a5, 14*8(sp)",
+        "ld  a6, 15*8(sp)",
+        "ld  a7, 16*8(sp)",
+        "ld  s0, 17*8(sp)",
+        "ld  s1, 18*8(sp)",
+        "ld  s2, 19*8(sp)",
+        "ld  s3, 20*8(sp)",
+        "ld  s4, 21*8(sp)",
+        "ld  s5, 22*8(sp)",
+        "ld  s6, 23*8(sp)",
+        "ld  s7, 24*8(sp)",
+        "ld  s8, 25*8(sp)",
+        "ld  s9, 26*8(sp)",
+        "ld s10, 27*8(sp)",
+        "ld s11, 28*8(sp)",
+        "addi sp, sp, 30*8",
+        // Return from irq
+        "mret"
+    )
 }
 
 #[panic_handler]
@@ -36,16 +107,7 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
     loop {}
 }
 
-const TIMER_INTERVAL: u64 = 10_000_000;
-
-#[cfg(miri)]
-#[unsafe(no_mangle)]
-fn miri_start(argc: isize, argv: *const *const u8) -> isize {
-    unsafe {
-        start();
-    }
-    return 0;
-}
+const CPU_FREQ_HZ: u64 = 10_000_000;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start() -> ! {
@@ -54,31 +116,34 @@ pub unsafe extern "C" fn start() -> ! {
         "stack: [{:?}-{:?}]({})",
         &raw const __stack_start, &raw const __stack_end, &raw const __stack_size as usize
     );
+
+    println!("Setting up irq...");
+    irq::setup(_trapvec);
+
     println!("Creating process 1...");
     proc::create_process(process1);
     println!("Creating process 2...");
     proc::create_process(process2);
     println!("Starting scheduler...");
-    proc::run_scheduler();
+    proc::run_scheduler(CPU_FREQ_HZ * 2);
 }
 
 pub fn process1() {
     loop {
         println!("I'm process 1!");
-        proc::yield_self();
+        proc::wait_irq();
     }
 }
 
 pub fn process2() {
     loop {
         println!("I'm process 2!");
-        proc::yield_self();
+        proc::wait_irq();
     }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn on_timer_int() {
-    timer::schedule(TIMER_INTERVAL);
-    let mut uart = io::uart::Uart;
-    uart.write_str("Hello\n");
+pub unsafe extern "C" fn on_timer_irq() {
+    println!("TRAP");
+    proc::yield_self();
 }
