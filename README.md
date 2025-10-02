@@ -15,10 +15,10 @@ I like operating systems and low-level system development. I felt like rewriting
 - Prototype 1:
     - [x] Serial IO through UART;
     - [x] Interrupts;
-    - [ ] Threads;
+    - [x] Threads;
     - [x] Timer;
 - Prototype 2:
-    - [ ] Multitasking;
+    - [x] Multitasking;
     - [ ] Memory allocator;
     - [ ] Userspace;
     - [ ] Basic Syscalls (read, write, sleep, fork, exit);
