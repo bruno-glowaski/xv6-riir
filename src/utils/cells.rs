@@ -1,5 +1,7 @@
 use core::cell::UnsafeCell;
 
+use crate::println;
+
 pub struct Idc<T>(UnsafeCell<T>);
 
 /// Behold: the "I Don't Care-cell", god of undefined behavior.
@@ -11,6 +13,7 @@ impl<T> Idc<T> {
 
     #[inline]
     pub fn get(&self) -> &mut T {
+        println!("Now this is unsafe!");
         unsafe { &mut *self.0.get() }
     }
 }
