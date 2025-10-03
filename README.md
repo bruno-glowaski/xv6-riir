@@ -4,8 +4,8 @@ I like operating systems and low-level system development. I felt like rewriting
 
 ## Features
 
-- [ ] Process management;
-- [ ] Scheduling;
+- [x] Process management;
+- [x] Scheduling;
 - [ ] Virtual memory;
 - [ ] Memory allocation;
 - [ ] File system;
