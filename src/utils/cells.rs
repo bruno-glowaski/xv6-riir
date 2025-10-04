@@ -2,10 +2,10 @@ use core::cell::UnsafeCell;
 
 use crate::println;
 
-pub struct Idc<T>(UnsafeCell<T>);
-
 /// Behold: the "I Don't Care-cell", god of undefined behavior.
 /// For all intents and purposes, treat this as an unsafe block.
+pub struct Idc<T>(UnsafeCell<T>);
+
 impl<T> Idc<T> {
     pub const fn new(inner: T) -> Self {
         Self(UnsafeCell::new(inner))

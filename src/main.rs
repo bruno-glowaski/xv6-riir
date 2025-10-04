@@ -58,10 +58,13 @@ pub unsafe extern "C" fn _trapvec() {
         "sd s10, 27*8(sp)",
         "sd s11, 28*8(sp)",
         // Save mepc
-        "csrr t0, mepc",
-        "sd t0, 29*8(sp)",
-        // Call traphandler
-        "call on_timer_irq",
+        "csrr a0, mepc",
+        "sd a0, 29*8(sp)",
+        // Call trapvec
+        // a0 is already loaded with mepc
+        "csrr a1, mcause",
+        "csrr a2, mtval",
+        "call trapvec",
         // Restore mepc
         "ld t0, 29*8(sp)",
         "csrw mepc, t0",
@@ -121,9 +124,9 @@ pub unsafe extern "C" fn start() -> ! {
     irq::setup(_trapvec);
 
     println!("Creating process 1...");
-    proc::create_process(process1);
+    proc::PROCESSES.create(process1);
     println!("Creating process 2...");
-    proc::create_process(process2);
+    proc::PROCESSES.create(process2);
     println!("Starting scheduler...");
     proc::run_scheduler(CPU_FREQ_HZ * 2);
 }
@@ -142,8 +145,16 @@ pub fn process2() {
     }
 }
 
+const MCAUSE_MTI: u64 = 7 | 1 << 63;
+
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn on_timer_irq() {
+pub unsafe fn trapvec(mepc: u64, mcause: u64, mtval: u64) {
     println!("TRAP");
-    proc::yield_self();
+    match mcause {
+        MCAUSE_MTI => proc::yield_self(),
+        _ => panic!(
+            "unhandled irq (mepc: {:#016X}; mcause: {:#016X}; mtval: {:#016X})",
+            mepc, mcause, mtval
+        ),
+    }
 }
