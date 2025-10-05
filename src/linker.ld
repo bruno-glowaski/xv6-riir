@@ -13,7 +13,7 @@ SECTIONS
   . = ORIGIN(RAM);
 
   .text : ALIGN(4K) {
-    *(.text.entry)
+    *(.text._entry)
     *(.text*)
   } > RAM
 

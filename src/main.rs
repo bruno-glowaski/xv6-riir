@@ -1,13 +1,11 @@
 #![no_std]
 #![no_main]
 
-mod io;
-mod irq;
-mod proc;
-mod timer;
-mod utils;
-
 use core::{arch::naked_asm, panic::PanicInfo};
+
+use poc_rxv6::{irq, println, proc};
+
+const CPU_FREQ_HZ: u64 = 10_000_000;
 
 unsafe extern "C" {
     static mut __stack_size: u8;
@@ -17,7 +15,6 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-#[unsafe(link_section = ".text.entry")]
 pub unsafe extern "C" fn _entry() -> ! {
     naked_asm!("la sp, __stack_end", "call start", "1: j 1b")
 }
@@ -109,8 +106,6 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
     println!("{}", info);
     loop {}
 }
-
-const CPU_FREQ_HZ: u64 = 10_000_000;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start() -> ! {
