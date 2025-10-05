@@ -29,7 +29,7 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
 pub fn test_runner(tests: &[&dyn Testable]) {
     println!("Running {} tests:", tests.len());
     for (i, test) in tests.iter().enumerate() {
-        print!("\t- {}/{}: {}...", i, tests.len(), test.test_name());
+        print!("\t- {}/{}: {}...", i + 1, tests.len(), test.test_name());
         test.run_test();
         println!(" [ok]");
     }
