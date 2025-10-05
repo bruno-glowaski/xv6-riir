@@ -2,8 +2,6 @@
 name = "poc-rxv6"
 version = "0.1.0"
 edition = "2024"
-test = true
-bench = false
 
 [[bin]]
 name = "poc-rxv6"

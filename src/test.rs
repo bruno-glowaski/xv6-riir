@@ -1,6 +1,6 @@
 use core::{any::type_name, arch::naked_asm, panic::PanicInfo};
 
-use crate::{print, println, test_main};
+use crate::{io, print, println, test_main};
 
 unsafe extern "C" {
     static mut __stack_size: u8;
@@ -17,13 +17,13 @@ pub unsafe extern "C" fn _entry() -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn start() -> ! {
     test_main();
-    loop {}
+    io::sifive_test::exit_success();
 }
 
 #[panic_handler]
 pub fn panic_handler(info: &PanicInfo) -> ! {
     println!(" [failed]\n{}", info);
-    loop {}
+    io::sifive_test::exit_error(1);
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) {

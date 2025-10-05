@@ -123,6 +123,7 @@ pub unsafe extern "C" fn start() -> ! {
     println!("Creating process 2...");
     proc::PROCESSES.create(process2);
     println!("Starting scheduler...");
+    io
     proc::run_scheduler(CPU_FREQ_HZ * 2);
 }
 

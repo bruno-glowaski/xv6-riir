@@ -1,5 +1,6 @@
 use core::fmt::Arguments;
 
+pub mod sifive_test;
 pub mod uart;
 
 #[macro_export]
